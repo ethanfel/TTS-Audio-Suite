@@ -12,10 +12,10 @@ import numpy as np
 # Handle pad_center import
 try:
     from librosa.util import pad_center
-except ImportError:
+except Exception:
     try:
         from librosa import pad_center
-    except ImportError:
+    except Exception:
         def pad_center(data, size, axis=-1, **kwargs):
             """Manual implementation of librosa's pad_center for compatibility"""
             n = data.shape[axis]
@@ -31,20 +31,20 @@ except ImportError:
 # Handle tiny import
 try:
     from librosa.util import tiny
-except ImportError:
+except Exception:
     try:
         from librosa import tiny
-    except ImportError:
+    except Exception:
         # Manual implementation - tiny is just a very small float
         tiny = 1e-10
 
 # Handle normalize import
 try:
     from librosa.util import normalize
-except ImportError:
+except Exception:
     try:
         from librosa import normalize
-    except ImportError:
+    except Exception:
         def normalize(S, norm=np.inf, axis=0, threshold=None, fill=None):
             """Manual implementation of librosa's normalize for compatibility"""
             if norm is None:
