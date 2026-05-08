@@ -5,7 +5,10 @@ Calls the original reference code directly with minimal modifications
 
 import os
 import sys
+import importlib
+import types
 import weakref
+import numpy as np
 
 # CRITICAL FIX for Python 3.13 + numba + librosa compatibility
 # 🔬 NUMBA WORKAROUND: Commented out - testing if still needed with numba 0.61.2+ and librosa 0.11.0+
@@ -15,114 +18,145 @@ import weakref
 #     print("🔧 RVC: Disabled numba JIT for Python 3.13+ compatibility")
 
 # Additional librosa compatibility monkey-patching (keeping this active since it's useful)
-def apply_librosa_compatibility_patches():
-    """Apply global librosa compatibility patches for Python 3.13"""
-    try:
-        import librosa.util
-        import numpy as np
-        
-        # Check if normalize is missing and add it
-        if not hasattr(librosa.util, 'normalize'):
-            def normalize(S, norm=np.inf, axis=-1, threshold=None, fill=None):
-                """Manual implementation of librosa's normalize for compatibility"""
-                S = np.asarray(S)
-                if norm == np.inf:
-                    max_val = np.max(np.abs(S), axis=axis, keepdims=True)
-                    max_val[max_val == 0] = 1.0
-                    return S / max_val
-                else:
-                    norm_val = np.sum(np.abs(S)**norm, axis=axis, keepdims=True)**(1./norm)
-                    norm_val[norm_val == 0] = 1.0
-                    return S / norm_val
-            librosa.util.normalize = normalize
-            print("🔧 RVC: Applied normalize compatibility patch to librosa.util")
-            
-        # Check if pad_center is missing and add it
-        if not hasattr(librosa.util, 'pad_center'):
-            def pad_center(data, size, axis=-1, **kwargs):
-                """Manual implementation of librosa's pad_center for compatibility"""
-                n = data.shape[axis]
-                lpad = int((size - n) // 2)
-                rpad = int(size - n - lpad)
-                pad_widths = [(0, 0)] * data.ndim
-                pad_widths[axis] = (lpad, rpad)
-                return np.pad(data, pad_widths, mode=kwargs.get('mode', 'constant'), 
-                             constant_values=kwargs.get('constant_values', 0))
-            
-            librosa.util.pad_center = pad_center
-            print("🔧 RVC: Applied pad_center compatibility patch to librosa.util")
-        
-        # Check if tiny is missing and add it  
-        if not hasattr(librosa.util, 'tiny'):
-            def tiny(x):
-                """Manual implementation of librosa's tiny function for compatibility"""
-                return np.finfo(np.float32).tiny
-            librosa.util.tiny = tiny
-            print("🔧 RVC: Applied tiny compatibility patch to librosa.util")
-        
-        # Check if fill_off_diagonal is missing and add it
-        if not hasattr(librosa.util, 'fill_off_diagonal'):
-            def fill_off_diagonal(x, radius, value=0):
-                """Manual implementation of librosa's fill_off_diagonal for compatibility"""
-                x = np.asarray(x)
-                if x.ndim == 1:
-                    # For 1D arrays, return a copy
-                    return x.copy()
-                
-                # Create a copy to avoid modifying the original
-                result = x.copy()
-                n = min(result.shape)
-                
-                # Fill off-diagonal elements within the specified radius
-                for i in range(n):
-                    for j in range(n):
-                        if abs(i - j) <= radius and i != j:
-                            result[i, j] = value
-                
-                return result
-            librosa.util.fill_off_diagonal = fill_off_diagonal
-            print("🔧 RVC: Applied fill_off_diagonal compatibility patch to librosa.util")
-        
-        # Check if is_positive_int is missing and add it
-        if not hasattr(librosa.util, 'is_positive_int'):
-            def is_positive_int(x):
-                """Manual implementation of librosa's is_positive_int for compatibility"""
-                try:
-                    return isinstance(x, int) and x > 0
-                except (TypeError, ValueError):
-                    return False
-            librosa.util.is_positive_int = is_positive_int
-            print("🔧 RVC: Applied is_positive_int compatibility patch to librosa.util")
-        
-        # Check if expand_to is missing and add it
-        if not hasattr(librosa.util, 'expand_to'):
-            def expand_to(x, *, ndim=None, axes=None):
-                """Manual implementation of librosa's expand_to for compatibility"""
-                x = np.asarray(x)
-                
-                if ndim is not None:
-                    # Expand to target number of dimensions
-                    while x.ndim < ndim:
-                        x = np.expand_dims(x, axis=-1)
-                
-                if axes is not None:
-                    # Expand along specific axes
-                    for axis in sorted(axes):
-                        if axis >= x.ndim:
-                            x = np.expand_dims(x, axis=axis)
-                
-                return x
-            librosa.util.expand_to = expand_to
-            print("🔧 RVC: Applied expand_to compatibility patch to librosa.util")
-            
-    except Exception as e:
-        print(f"⚠️ RVC: Could not apply librosa compatibility patches: {e}")
-    
-    # Apply patches after a short delay to ensure librosa is loaded
-    import threading
-    threading.Timer(0.1, apply_librosa_compatibility_patches).start()
+def _normalize(S, norm=np.inf, axis=-1, threshold=None, fill=None):
+    S = np.asarray(S)
 
-import numpy as np
+    if norm is None:
+        return S
+    if norm == np.inf:
+        length = np.max(np.abs(S), axis=axis, keepdims=True)
+    elif norm == -np.inf:
+        length = np.min(np.abs(S), axis=axis, keepdims=True)
+    else:
+        length = np.sum(np.abs(S) ** norm, axis=axis, keepdims=True) ** (1.0 / norm)
+
+    if threshold is not None:
+        length = np.maximum(length, threshold)
+
+    if fill is not None:
+        length = np.where(length == 0, fill, length)
+    else:
+        length = np.where(length == 0, 1.0, length)
+
+    return S / length
+
+
+def _pad_center(data, size, axis=-1, **kwargs):
+    data = np.asarray(data)
+    n = data.shape[axis]
+    lpad = int((size - n) // 2)
+    rpad = int(size - n - lpad)
+    pad_widths = [(0, 0)] * data.ndim
+    pad_widths[axis] = (lpad, rpad)
+    return np.pad(
+        data,
+        pad_widths,
+        mode=kwargs.get("mode", "constant"),
+        constant_values=kwargs.get("constant_values", 0),
+    )
+
+
+def _tiny(x):
+    x = np.asarray(x)
+    return np.finfo(x.dtype if np.issubdtype(x.dtype, np.floating) else np.float32).tiny
+
+
+def _fill_off_diagonal(x, radius, value=0):
+    x = np.asarray(x)
+    if x.ndim == 1:
+        return x.copy()
+
+    result = x.copy()
+    n = min(result.shape)
+    for i in range(n):
+        for j in range(n):
+            if abs(i - j) <= radius and i != j:
+                result[i, j] = value
+    return result
+
+
+def _is_positive_int(x):
+    try:
+        return isinstance(x, int) and x > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _expand_to(x, *, ndim=None, axes=None):
+    x = np.asarray(x)
+    if ndim is not None:
+        while x.ndim < ndim:
+            x = np.expand_dims(x, axis=-1)
+    if axes is not None:
+        axes_list = [axes] if isinstance(axes, int) else axes
+        for axis in sorted(axes_list):
+            if axis >= x.ndim:
+                x = np.expand_dims(x, axis=axis)
+    return x
+
+
+def _fix_length(data, *, size, axis=-1, **kwargs):
+    data = np.asarray(data)
+    n = data.shape[axis]
+    if n > size:
+        slices = [slice(None)] * data.ndim
+        slices[axis] = slice(0, size)
+        return data[tuple(slices)]
+    if n < size:
+        pad_widths = [(0, 0)] * data.ndim
+        pad_widths[axis] = (0, size - n)
+        return np.pad(data, pad_widths, mode=kwargs.get("mode", "constant"))
+    return data
+
+
+def _stack(arrays, axis=0):
+    return np.stack(arrays, axis=axis)
+
+
+_LIBROSA_UTIL_FALLBACKS = {
+    "normalize": _normalize,
+    "pad_center": _pad_center,
+    "tiny": _tiny,
+    "fill_off_diagonal": _fill_off_diagonal,
+    "is_positive_int": _is_positive_int,
+    "expand_to": _expand_to,
+    "fix_length": _fix_length,
+    "stack": _stack,
+}
+
+
+def _build_librosa_util_fallback_module():
+    util_module = types.ModuleType("librosa.util")
+    util_module.__dict__.update(_LIBROSA_UTIL_FALLBACKS)
+    return util_module
+
+
+def _ensure_librosa_util_helpers(util_module):
+    for name, fallback in _LIBROSA_UTIL_FALLBACKS.items():
+        if not hasattr(util_module, name):
+            setattr(util_module, name, fallback)
+
+
+def apply_librosa_compatibility_patches():
+    """Patch librosa.util only when the real module is missing or broken."""
+    try:
+        import librosa
+    except Exception as e:
+        print(f"⚠️ RVC: Could not import librosa for compatibility patches: {e}")
+        return False
+
+    try:
+        util_module = importlib.import_module("librosa.util")
+        _ensure_librosa_util_helpers(util_module)
+        librosa.util = util_module
+        return True
+    except Exception as e:
+        util_module = _build_librosa_util_fallback_module()
+        sys.modules["librosa.util"] = util_module
+        librosa.util = util_module
+        print(f"🔧 RVC: Using bundled librosa.util fallback ({e})")
+        return True
+
 import torch
 from typing import Tuple, Optional
 
@@ -313,105 +347,10 @@ class MinimalRVCWrapper:
         try:
             print(f"🎵 Minimal wrapper RVC conversion: {f0_method} method, pitch: {f0_up_key}")
             
-            # Apply librosa patches before importing RVC modules
+            # Apply before importing RVC modules; some Python 3.13 numba stacks crash
+            # while lazy-loading librosa.util.
             if sys.version_info >= (3, 13):
-                try:
-                    import librosa.util
-                    if not hasattr(librosa.util, 'normalize'):
-                        def normalize(S, norm=float('inf'), axis=-1, threshold=None, fill=None):
-                            """Manual implementation of librosa's normalize for compatibility"""
-                            import numpy as np
-                            S = np.asarray(S)
-                            if norm == float('inf') or norm == np.inf:
-                                max_val = np.max(np.abs(S), axis=axis, keepdims=True)
-                                max_val[max_val == 0] = 1.0
-                                return S / max_val
-                            else:
-                                norm_val = np.sum(np.abs(S)**norm, axis=axis, keepdims=True)**(1./norm)
-                                norm_val[norm_val == 0] = 1.0
-                                return S / norm_val
-                        librosa.util.normalize = normalize
-                        print("🔧 RVC: Applied normalize compatibility patch")
-                        
-                    if not hasattr(librosa.util, 'pad_center'):
-                        def pad_center(data, size, axis=-1, **kwargs):
-                            """Manual implementation of librosa's pad_center for compatibility"""
-                            import numpy as np
-                            n = data.shape[axis]
-                            lpad = int((size - n) // 2)
-                            rpad = int(size - n - lpad)
-                            pad_widths = [(0, 0)] * data.ndim
-                            pad_widths[axis] = (lpad, rpad)
-                            return np.pad(data, pad_widths, mode=kwargs.get('mode', 'constant'), 
-                                         constant_values=kwargs.get('constant_values', 0))
-                        librosa.util.pad_center = pad_center
-                        print("🔧 RVC: Applied pad_center compatibility patch")
-                    
-                    if not hasattr(librosa.util, 'tiny'):
-                        def tiny(x):
-                            """Manual implementation of librosa's tiny function for compatibility"""
-                            import numpy as np
-                            return np.finfo(np.float32).tiny
-                        librosa.util.tiny = tiny
-                        print("🔧 RVC: Applied tiny compatibility patch")
-                    
-                    if not hasattr(librosa.util, 'fill_off_diagonal'):
-                        def fill_off_diagonal(x, radius, value=0):
-                            """Manual implementation of librosa's fill_off_diagonal for compatibility"""
-                            import numpy as np
-                            x = np.asarray(x)
-                            if x.ndim == 1:
-                                # For 1D arrays, return a copy
-                                return x.copy()
-                            
-                            # Create a copy to avoid modifying the original
-                            result = x.copy()
-                            n = min(result.shape)
-                            
-                            # Fill off-diagonal elements within the specified radius
-                            for i in range(n):
-                                for j in range(n):
-                                    if abs(i - j) <= radius and i != j:
-                                        result[i, j] = value
-                            
-                            return result
-                        librosa.util.fill_off_diagonal = fill_off_diagonal
-                        print("🔧 RVC: Applied fill_off_diagonal compatibility patch")
-                    
-                    if not hasattr(librosa.util, 'is_positive_int'):
-                        def is_positive_int(x):
-                            """Manual implementation of librosa's is_positive_int for compatibility"""
-                            try:
-                                return isinstance(x, int) and x > 0
-                            except (TypeError, ValueError):
-                                return False
-                        librosa.util.is_positive_int = is_positive_int
-                        print("🔧 RVC: Applied is_positive_int compatibility patch")
-                    
-                    if not hasattr(librosa.util, 'expand_to'):
-                        def expand_to(x, *, ndim=None, axes=None):
-                            """Manual implementation of librosa's expand_to for compatibility"""
-                            import numpy as np
-                            x = np.asarray(x)
-                            
-                            if ndim is not None:
-                                # Expand to target number of dimensions
-                                while x.ndim < ndim:
-                                    x = np.expand_dims(x, axis=-1)
-                            
-                            if axes is not None:
-                                # Expand along specific axes - handle both int and iterable
-                                axes_list = [axes] if isinstance(axes, int) else axes
-                                for axis in sorted(axes_list):
-                                    if axis >= x.ndim:
-                                        x = np.expand_dims(x, axis=axis)
-                            
-                            return x
-                        librosa.util.expand_to = expand_to
-                        print("🔧 RVC: Applied expand_to compatibility patch")
-                        
-                except ImportError:
-                    pass  # librosa not loaded yet
+                apply_librosa_compatibility_patches()
             
             # Import reference functions using absolute imports to avoid package issues
             from engines.rvc.impl.vc_infer_pipeline import get_vc, vc_single
