@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.25.21] - 2026-05-09
+
+### Added
+
+- Support mel filter options used by RMVPE pitch extraction on Python 3.13 setups
+
+### Fixed
+
+- Fix RVC voice conversion failing during RMVPE pitch extraction
+- Fix trained RVC models still returning original audio after the librosa utility fallback
+- Preserve normal librosa behavior while improving fallback compatibility
 ## [4.25.20] - 2026-05-07
 
 ### Added
