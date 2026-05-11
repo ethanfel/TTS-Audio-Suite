@@ -138,8 +138,30 @@ class VevoEngine:
     # Pipeline construction
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _patch_llama_config():
+        """Patch LlamaConfig to accept positional args (newer transformers rejects them)."""
+        from transformers import LlamaConfig
+        import inspect
+
+        orig_init = LlamaConfig.__init__
+        if getattr(orig_init, "_vevo_patched", False):
+            return
+
+        params = list(inspect.signature(orig_init).parameters.keys())
+        params = [p for p in params if p != "self"]
+
+        def _patched_init(self, *args, **kwargs):
+            for name, val in zip(params, args):
+                kwargs.setdefault(name, val)
+            orig_init(self, **kwargs)
+
+        _patched_init._vevo_patched = True
+        LlamaConfig.__init__ = _patched_init
+
     def _inject_amphion_path(self):
         """Ensure Amphion source is importable."""
+        self._patch_llama_config()
         amphion_dir = self._ensure_amphion()
         if amphion_dir not in sys.path:
             sys.path.insert(0, amphion_dir)
