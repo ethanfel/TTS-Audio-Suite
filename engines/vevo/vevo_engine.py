@@ -40,13 +40,13 @@ HF_REPO_ID = "amphion/Vevo"
 # Selective download patterns for each pipeline stage
 _TIMBRE_PATTERNS = [
     "tokenizer/vq8192/*",
-    "Vq8192ToMels/*",
-    "Vocoder/*",
+    "acoustic_modeling/Vq8192ToMels/*",
+    "acoustic_modeling/Vocoder/*",
 ]
 
 _VOICE_PATTERNS = _TIMBRE_PATTERNS + [
     "tokenizer/vq32/*",
-    "Vq32ToVq8192/*",
+    "contentstyle_modeling/Vq32ToVq8192/*",
 ]
 
 # Amphion config paths (relative to Amphion repo root)
@@ -116,10 +116,6 @@ class VevoEngine:
 
     def _ensure_models(self, patterns: list) -> str:
         """Download model components from HuggingFace using *patterns*. Returns local dir."""
-        if self._model_dir and os.path.isdir(self._model_dir):
-            # Check whether the requested patterns are already satisfied
-            return self._model_dir
-
         from huggingface_hub import snapshot_download
 
         if folder_paths is not None:
@@ -128,15 +124,15 @@ class VevoEngine:
             base = os.path.join(os.path.expanduser("~"), ".cache", "vevo")
         os.makedirs(base, exist_ok=True)
 
-        print(f"[VEVO] Downloading model components (patterns={patterns}) ...")
-        local_dir = snapshot_download(
+        local_dir = os.path.join(base, "models")
+        # snapshot_download is idempotent; cached files are not re-downloaded
+        result_dir = snapshot_download(
             repo_id=HF_REPO_ID,
             allow_patterns=patterns,
-            local_dir=os.path.join(base, "models"),
+            local_dir=local_dir,
         )
-        print(f"[VEVO] Models ready at {local_dir}")
-        self._model_dir = local_dir
-        return local_dir
+        self._model_dir = result_dir
+        return result_dir
 
     # ------------------------------------------------------------------
     # Pipeline construction
@@ -162,11 +158,10 @@ class VevoEngine:
 
         pipeline = VevoInferencePipeline(
             content_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq8192"),
-            content_tokenizer_config_path=os.path.join(amphion_dir, _CFG_FM),
-            flow_matching_ckpt_path=os.path.join(model_dir, "Vq8192ToMels"),
-            flow_matching_config_path=os.path.join(amphion_dir, _CFG_FM),
-            vocoder_ckpt_path=os.path.join(model_dir, "Vocoder"),
-            vocoder_config_path=os.path.join(amphion_dir, _CFG_VOCODER),
+            fmt_cfg_path=os.path.join(amphion_dir, _CFG_FM),
+            fmt_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vq8192ToMels"),
+            vocoder_cfg_path=os.path.join(amphion_dir, _CFG_VOCODER),
+            vocoder_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vocoder"),
             device=self._device,
         )
         self._pipeline_timbre = pipeline
@@ -186,14 +181,13 @@ class VevoEngine:
         amphion_dir = self._amphion_dir
 
         pipeline = VevoInferencePipeline(
-            content_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq32"),
-            content_tokenizer_config_path=os.path.join(amphion_dir, _CFG_AR),
-            ar_ckpt_path=os.path.join(model_dir, "Vq32ToVq8192"),
-            ar_config_path=os.path.join(amphion_dir, _CFG_AR),
-            flow_matching_ckpt_path=os.path.join(model_dir, "Vq8192ToMels"),
-            flow_matching_config_path=os.path.join(amphion_dir, _CFG_FM),
-            vocoder_ckpt_path=os.path.join(model_dir, "Vocoder"),
-            vocoder_config_path=os.path.join(amphion_dir, _CFG_VOCODER),
+            content_style_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq32"),
+            ar_cfg_path=os.path.join(amphion_dir, _CFG_AR),
+            ar_ckpt_path=os.path.join(model_dir, "contentstyle_modeling", "Vq32ToVq8192"),
+            fmt_cfg_path=os.path.join(amphion_dir, _CFG_FM),
+            fmt_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vq8192ToMels"),
+            vocoder_cfg_path=os.path.join(amphion_dir, _CFG_VOCODER),
+            vocoder_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vocoder"),
             device=self._device,
         )
         self._pipeline_voice = pipeline
@@ -230,8 +224,9 @@ class VevoEngine:
         pipeline = self._load_voice_pipeline()
         gen_audio = pipeline.inference_ar_and_fm(
             src_wav_path=src_path,
-            timbre_ref_wav_path=ref_path,
+            src_text=None,
             style_ref_wav_path=style_path,
+            timbre_ref_wav_path=ref_path,
             flow_matching_steps=steps,
         )
         return gen_audio.cpu().numpy().astype(np.float32)

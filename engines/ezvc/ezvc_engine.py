@@ -100,7 +100,7 @@ class EZVCEngine:
         os.makedirs(os.path.dirname(repo_dir), exist_ok=True)
         print(f"[EZ-VC] Cloning repo to {repo_dir} ...")
         subprocess.check_call(
-            ["git", "clone", "--depth", "1", self.REPO_URL, repo_dir],
+            ["git", "clone", "--depth", "1", "--recurse-submodules", self.REPO_URL, repo_dir],
         )
         print("[EZ-VC] Repo cloned successfully.")
         return repo_dir
@@ -156,8 +156,10 @@ class EZVCEngine:
 
         # --- F5-TTS decoder ----------------------------------------------
         print("[EZ-VC] Loading F5-TTS decoder ...")
+        from f5_tts.model import DiT
+
         self._f5tts_model = load_model(
-            model_cls="DiT",
+            model_cls=DiT,
             model_cfg=dict(
                 dim=1024,
                 depth=22,
@@ -228,9 +230,9 @@ class EZVCEngine:
 
             # --- extract speech units from source via XEUS ----------------
             source_units = self._extract_units(
+                src_tmp.name,
                 self._xeus_model,
                 self._kmeans,
-                src_tmp.name,
                 device=self.device,
             )
 
@@ -248,24 +250,10 @@ class EZVCEngine:
                     speed=speed,
                 )
 
-            # --- concatenate returned segments ----------------------------
-            audio_chunks = []
-            for seg in segments:
-                # infer_process yields (sr, audio_np) tuples or similar
-                if isinstance(seg, tuple):
-                    _sr, chunk = seg
-                else:
-                    chunk = seg
-                if isinstance(chunk, torch.Tensor):
-                    chunk = chunk.cpu().numpy()
-                chunk = np.asarray(chunk, dtype=np.float32).ravel()
-                audio_chunks.append(chunk)
-
-            if not audio_chunks:
-                raise RuntimeError("EZ-VC infer_process returned no audio segments.")
-
-            converted = np.concatenate(audio_chunks)
-            return converted, self.OUTPUT_SR
+            # infer_process returns (final_wave, sample_rate, spectrogram)
+            final_wave, out_sr, _spectrogram = segments
+            converted = np.asarray(final_wave, dtype=np.float32).ravel()
+            return converted, out_sr
 
         finally:
             # --- clean up temp files --------------------------------------

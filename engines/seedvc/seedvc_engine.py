@@ -271,7 +271,6 @@ class SeedVCEngine:
 
         source_path = None
         reference_path = None
-        output_path = None
 
         try:
             # Write source and reference to temp WAV files
@@ -283,22 +282,17 @@ class SeedVCEngine:
             os.close(ref_fd)
             self._write_wav(reference_path, reference_audio, reference_sr)
 
-            # Prepare output path
-            out_fd, output_path = tempfile.mkstemp(suffix="_out.wav")
-            os.close(out_fd)
-
             # --- V2 inference ---
             if self.variant == "v2":
-                result = self._infer_v2(source_path, reference_path, output_path)
+                result = self._infer_v2(source_path, reference_path, None)
             # --- V1 inference ---
             else:
-                result = self._infer_v1(source_path, reference_path, output_path)
+                result = self._infer_v1(source_path, reference_path, None)
 
             return result
 
         finally:
-            # Clean up temp files
-            for p in (source_path, reference_path, output_path):
+            for p in (source_path, reference_path):
                 if p is not None:
                     try:
                         os.unlink(p)
@@ -312,35 +306,30 @@ class SeedVCEngine:
         model = self._model
 
         if hasattr(model, "convert_voice_with_streaming"):
-            # V2 streaming API
-            chunks = []
-            for chunk in model.convert_voice_with_streaming(
-                source=source_path,
-                target=reference_path,
+            # stream_output=False returns concatenated numpy array directly
+            audio_out = model.convert_voice_with_streaming(
+                source_audio_path=source_path,
+                target_audio_path=reference_path,
                 diffusion_steps=self.diffusion_steps,
                 length_adjust=self.length_adjust,
-                intelligibility_cfg_rate=self.intelligibility_cfg_rate,
+                intelligebility_cfg_rate=self.intelligibility_cfg_rate,
                 similarity_cfg_rate=self.similarity_cfg_rate,
                 convert_style=self.convert_style,
-            ):
-                if isinstance(chunk, torch.Tensor):
-                    chunks.append(chunk.cpu().numpy())
-                elif isinstance(chunk, np.ndarray):
-                    chunks.append(chunk)
-
-            if chunks:
-                audio_out = np.concatenate(
-                    [c.squeeze() for c in chunks], axis=-1
-                )
+                device=self.device,
+                stream_output=False,
+            )
+            if isinstance(audio_out, torch.Tensor):
+                audio_out = audio_out.cpu().numpy().squeeze()
             else:
-                audio_out = np.zeros(self.OUTPUT_SR, dtype=np.float32)
+                audio_out = np.asarray(audio_out, dtype=np.float32).squeeze()
         elif hasattr(model, "convert_voice"):
-            # Fallback non-streaming API
             result = model.convert_voice(
-                source=source_path,
-                target=reference_path,
+                source_audio_path=source_path,
+                target_audio_path=reference_path,
                 diffusion_steps=self.diffusion_steps,
                 length_adjust=self.length_adjust,
+                inference_cfg_rate=self.intelligibility_cfg_rate,
+                device=self.device,
             )
             if isinstance(result, torch.Tensor):
                 audio_out = result.cpu().numpy().squeeze()
@@ -362,22 +351,22 @@ class SeedVCEngine:
 
         if hasattr(model, "inference"):
             result = model.inference(
-                source=source_path,
-                target=reference_path,
+                source_audio_path=source_path,
+                target_audio_path=reference_path,
                 diffusion_steps=self.diffusion_steps,
                 length_adjust=self.length_adjust,
             )
         elif hasattr(model, "convert_voice"):
             result = model.convert_voice(
-                source=source_path,
-                target=reference_path,
+                source_audio_path=source_path,
+                target_audio_path=reference_path,
                 diffusion_steps=self.diffusion_steps,
                 length_adjust=self.length_adjust,
             )
         elif hasattr(model, "__call__"):
             result = model(
-                source=source_path,
-                target=reference_path,
+                source_audio_path=source_path,
+                target_audio_path=reference_path,
                 diffusion_steps=self.diffusion_steps,
                 length_adjust=self.length_adjust,
             )
