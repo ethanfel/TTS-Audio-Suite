@@ -285,8 +285,10 @@ class SeedVCEngine:
         """Run V2 inference."""
         model = self._model
 
-        # stream_output=False returns concatenated numpy array directly
-        audio_out = model.convert_voice_with_streaming(
+        # convert_voice_with_streaming is always a generator (contains yield).
+        # With stream_output=True, iterate and grab full_audio from the last chunk.
+        audio_out = None
+        for _mp3_bytes, full_audio in model.convert_voice_with_streaming(
             source_audio_path=source_path,
             target_audio_path=reference_path,
             diffusion_steps=self.diffusion_steps,
@@ -295,8 +297,14 @@ class SeedVCEngine:
             similarity_cfg_rate=self.similarity_cfg_rate,
             convert_style=self.convert_style,
             device=self.device,
-            stream_output=False,
-        )
+            stream_output=True,
+        ):
+            if full_audio is not None:
+                sr, audio_out = full_audio
+
+        if audio_out is None:
+            raise RuntimeError("Seed-VC produced no audio output")
+
         if isinstance(audio_out, torch.Tensor):
             audio_out = audio_out.cpu().numpy().squeeze()
         else:
