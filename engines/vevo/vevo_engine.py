@@ -40,12 +40,12 @@ HF_REPO_ID = "amphion/Vevo"
 # Selective download patterns for each pipeline stage
 _TIMBRE_PATTERNS = [
     "tokenizer/vq8192/*",
+    "tokenizer/vq32/*",
     "acoustic_modeling/Vq8192ToMels/*",
     "acoustic_modeling/Vocoder/*",
 ]
 
 _VOICE_PATTERNS = _TIMBRE_PATTERNS + [
-    "tokenizer/vq32/*",
     "contentstyle_modeling/Vq32ToVq8192/*",
 ]
 
@@ -252,6 +252,7 @@ class VevoEngine:
             os.chdir(amphion_dir)
             pipeline = VevoInferencePipeline(
                 content_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq8192"),
+                content_style_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq32"),
                 fmt_cfg_path=os.path.join(amphion_dir, _CFG_FM),
                 fmt_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vq8192ToMels"),
                 vocoder_cfg_path=os.path.join(amphion_dir, _CFG_VOCODER),
