@@ -171,6 +171,19 @@ class SeedVCEngine:
         importlib.invalidate_caches()
 
         try:
+            # Patch BigVGAN._from_pretrained for newer huggingface_hub versions
+            # that pass extra kwargs (proxies, resume_download) the repo doesn't expect
+            from modules.bigvgan.bigvgan import BigVGAN
+            _orig_fp = BigVGAN._from_pretrained
+
+            @classmethod
+            def _compat_fp(cls, *args, **kwargs):
+                kwargs.pop("proxies", None)
+                kwargs.pop("resume_download", None)
+                return _orig_fp.__func__(cls, *args, **kwargs)
+
+            BigVGAN._from_pretrained = _compat_fp
+
             model = instantiate(cfg)
         finally:
             for p in conflicting:
