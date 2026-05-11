@@ -139,30 +139,25 @@ class VevoEngine:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _patch_llama_config():
-        """Patch LlamaConfig to accept positional args (newer transformers rejects them)."""
-        from transformers import LlamaConfig
-        import inspect
-
-        orig_init = LlamaConfig.__init__
-        if getattr(orig_init, "_vevo_patched", False):
+    def _patch_amphion_source(repo_dir: str):
+        """Fix Amphion source for newer transformers (LlamaConfig rejects positional args)."""
+        target = os.path.join(repo_dir, "models", "vc", "flow_matching_transformer", "llama_nar.py")
+        if not os.path.isfile(target):
             return
-
-        params = list(inspect.signature(orig_init).parameters.keys())
-        params = [p for p in params if p != "self"]
-
-        def _patched_init(self, *args, **kwargs):
-            for name, val in zip(params, args):
-                kwargs.setdefault(name, val)
-            orig_init(self, **kwargs)
-
-        _patched_init._vevo_patched = True
-        LlamaConfig.__init__ = _patched_init
+        with open(target, "r") as f:
+            src = f.read()
+        old = "LlamaConfig(0, 256, 1024, 1, 1)"
+        new = "LlamaConfig(vocab_size=0, hidden_size=256, intermediate_size=1024, num_hidden_layers=1, num_attention_heads=1)"
+        if old in src:
+            src = src.replace(old, new)
+            with open(target, "w") as f:
+                f.write(src)
+            print("[VEVO] Patched llama_nar.py for transformers compatibility")
 
     def _inject_amphion_path(self):
         """Ensure Amphion source is importable."""
-        self._patch_llama_config()
         amphion_dir = self._ensure_amphion()
+        self._patch_amphion_source(amphion_dir)
         if amphion_dir not in sys.path:
             sys.path.insert(0, amphion_dir)
 
