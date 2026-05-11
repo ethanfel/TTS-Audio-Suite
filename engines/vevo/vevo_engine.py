@@ -251,8 +251,8 @@ class VevoEngine:
         try:
             os.chdir(amphion_dir)
             pipeline = VevoInferencePipeline(
-                content_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq8192"),
-                content_style_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq32"),
+                content_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq32"),
+                content_style_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq8192"),
                 fmt_cfg_path=os.path.join(amphion_dir, _CFG_FM),
                 fmt_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vq8192ToMels"),
                 vocoder_cfg_path=os.path.join(amphion_dir, _CFG_VOCODER),
@@ -286,7 +286,8 @@ class VevoEngine:
         try:
             os.chdir(amphion_dir)
             pipeline = VevoInferencePipeline(
-                content_style_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq32"),
+                content_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq32"),
+                content_style_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq8192"),
                 ar_cfg_path=os.path.join(amphion_dir, _CFG_AR),
                 ar_ckpt_path=os.path.join(model_dir, "contentstyle_modeling", "Vq32ToVq8192"),
                 fmt_cfg_path=os.path.join(amphion_dir, _CFG_FM),
