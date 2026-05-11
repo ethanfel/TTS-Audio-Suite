@@ -92,6 +92,7 @@ torchfcpe>=0.0.4         # Fast Context-based Pitch Estimation for RVC (fcpe met
 # - onnxruntime (--no-deps): Forces numpy 2.3.x, needed for OpenSeeFace
 # - opencv-python (--no-deps): Forces numpy downgrade via numpy<2.3.0 constraint
 # - gradio (--no-deps): Forces pydantic, pillow, pydantic-core downgrades
+# - espnet (--no-deps): EZ-VC XEUS encoder - heavy deps that conflict with existing packages
 
 # --- PYTHON 3.13 NOTES ---
 # [OK] All TTS engines work (ChatterBox, F5-TTS, Higgs Audio, CosyVoice3)

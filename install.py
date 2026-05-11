@@ -716,6 +716,11 @@ class TTSAudioInstaller:
             "av",                         # Required by VibeVoice (PyAV - audio/video processing)
             "scikit-learn>=1.1.0",        # Required by librosa
             
+            # For espnet (when installed with --no-deps) - EZ-VC XEUS encoder
+            "kaldiio",                    # Required by espnet for audio I/O
+            "typeguard>=2.13,<3.0",       # Required by espnet type checking
+            "h5py>=3.0",                  # Required by espnet for HDF5 data
+
             # For cached-path (when installed with --no-deps)
             "filelock>=3.4",              # Required by cached-path
             "rich>=12.1",                 # Required by cached-path
@@ -1023,6 +1028,7 @@ class TTSAudioInstaller:
             # NOTE: onnxruntime moved to install_onnxruntime_with_gpu_support() for smart GPU detection
             "opencv-python",       # Forces numpy downgrade from 2.x to 1.26.x - dependencies pre-installed
             "gradio",              # Forces pydantic, pillow, pydantic-core downgrades - dependencies pre-installed
+            "espnet",              # EZ-VC XEUS encoder dependency - heavy deps that conflict with existing packages
         ]
 
         for package in problematic_packages:
