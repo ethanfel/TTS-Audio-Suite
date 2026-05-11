@@ -141,18 +141,22 @@ class VevoEngine:
     @staticmethod
     def _patch_amphion_source(repo_dir: str):
         """Fix Amphion source for newer transformers (LlamaConfig rejects positional args)."""
-        target = os.path.join(repo_dir, "models", "vc", "flow_matching_transformer", "llama_nar.py")
-        if not os.path.isfile(target):
-            return
-        with open(target, "r") as f:
-            src = f.read()
         old = "LlamaConfig(0, 256, 1024, 1, 1)"
         new = "LlamaConfig(vocab_size=0, hidden_size=256, intermediate_size=1024, num_hidden_layers=1, num_attention_heads=1)"
-        if old in src:
-            src = src.replace(old, new)
-            with open(target, "w") as f:
-                f.write(src)
-            print("[VEVO] Patched llama_nar.py for transformers compatibility")
+        models_dir = os.path.join(repo_dir, "models", "vc")
+        if not os.path.isdir(models_dir):
+            return
+        for root, _dirs, files in os.walk(models_dir):
+            for fname in files:
+                if not fname.endswith(".py"):
+                    continue
+                fpath = os.path.join(root, fname)
+                with open(fpath, "r") as f:
+                    src = f.read()
+                if old in src:
+                    with open(fpath, "w") as f:
+                        f.write(src.replace(old, new))
+                    print(f"[VEVO] Patched {fname} for transformers compatibility")
 
     def _inject_amphion_path(self):
         """Ensure Amphion source is importable."""
