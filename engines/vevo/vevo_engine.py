@@ -225,11 +225,18 @@ class VevoEngine:
         importlib.invalidate_caches()
         return conflicting
 
-    @staticmethod
-    def _restore_paths(conflicting):
+    def _restore_paths(self, conflicting):
+        """Restore sys.path and clear Amphion packages from sys.modules cache."""
+        import importlib
         for p in conflicting:
             if p not in sys.path:
                 sys.path.append(p)
+        for key in list(sys.modules.keys()):
+            for pkg in self._AMPHION_PACKAGES:
+                if key == pkg or key.startswith(pkg + "."):
+                    del sys.modules[key]
+                    break
+        importlib.invalidate_caches()
 
     def _load_timbre_pipeline(self):
         """Lazily build the timbre (flow-matching only) pipeline."""
