@@ -246,15 +246,21 @@ class VevoEngine:
             self._restore_paths(conflicting)
 
         amphion_dir = self._amphion_dir
+        old_cwd = os.getcwd()
 
-        pipeline = VevoInferencePipeline(
-            content_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq8192"),
-            fmt_cfg_path=os.path.join(amphion_dir, _CFG_FM),
-            fmt_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vq8192ToMels"),
-            vocoder_cfg_path=os.path.join(amphion_dir, _CFG_VOCODER),
-            vocoder_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vocoder"),
-            device=self._device,
-        )
+        try:
+            os.chdir(amphion_dir)
+            pipeline = VevoInferencePipeline(
+                content_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq8192"),
+                fmt_cfg_path=os.path.join(amphion_dir, _CFG_FM),
+                fmt_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vq8192ToMels"),
+                vocoder_cfg_path=os.path.join(amphion_dir, _CFG_VOCODER),
+                vocoder_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vocoder"),
+                device=self._device,
+            )
+        finally:
+            os.chdir(old_cwd)
+
         self._pipeline_timbre = pipeline
         print("[VEVO] Timbre pipeline loaded.")
         return pipeline
@@ -274,17 +280,23 @@ class VevoEngine:
             self._restore_paths(conflicting)
 
         amphion_dir = self._amphion_dir
+        old_cwd = os.getcwd()
 
-        pipeline = VevoInferencePipeline(
-            content_style_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq32"),
-            ar_cfg_path=os.path.join(amphion_dir, _CFG_AR),
-            ar_ckpt_path=os.path.join(model_dir, "contentstyle_modeling", "Vq32ToVq8192"),
-            fmt_cfg_path=os.path.join(amphion_dir, _CFG_FM),
-            fmt_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vq8192ToMels"),
-            vocoder_cfg_path=os.path.join(amphion_dir, _CFG_VOCODER),
-            vocoder_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vocoder"),
-            device=self._device,
-        )
+        try:
+            os.chdir(amphion_dir)
+            pipeline = VevoInferencePipeline(
+                content_style_tokenizer_ckpt_path=os.path.join(model_dir, "tokenizer", "vq32"),
+                ar_cfg_path=os.path.join(amphion_dir, _CFG_AR),
+                ar_ckpt_path=os.path.join(model_dir, "contentstyle_modeling", "Vq32ToVq8192"),
+                fmt_cfg_path=os.path.join(amphion_dir, _CFG_FM),
+                fmt_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vq8192ToMels"),
+                vocoder_cfg_path=os.path.join(amphion_dir, _CFG_VOCODER),
+                vocoder_ckpt_path=os.path.join(model_dir, "acoustic_modeling", "Vocoder"),
+                device=self._device,
+            )
+        finally:
+            os.chdir(old_cwd)
+
         self._pipeline_voice = pipeline
         print("[VEVO] Voice (AR + FM) pipeline loaded.")
         return pipeline
