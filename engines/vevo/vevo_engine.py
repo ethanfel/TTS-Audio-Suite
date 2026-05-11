@@ -20,7 +20,10 @@ import torch
 import torchaudio
 from typing import Tuple, Optional
 
-import folder_paths
+try:
+    import folder_paths
+except ImportError:
+    folder_paths = None
 import comfy.model_management
 
 
@@ -90,7 +93,10 @@ class VevoEngine:
         if self._amphion_dir and os.path.isdir(self._amphion_dir):
             return self._amphion_dir
 
-        base = os.path.join(folder_paths.models_dir, "TTS", "VEVO")
+        if folder_paths is not None:
+            base = os.path.join(folder_paths.models_dir, "TTS", "VEVO")
+        else:
+            base = os.path.join(os.path.expanduser("~"), ".cache", "vevo")
         os.makedirs(base, exist_ok=True)
         repo_dir = os.path.join(base, "Amphion")
 
@@ -116,7 +122,10 @@ class VevoEngine:
 
         from huggingface_hub import snapshot_download
 
-        base = os.path.join(folder_paths.models_dir, "TTS", "VEVO")
+        if folder_paths is not None:
+            base = os.path.join(folder_paths.models_dir, "TTS", "VEVO")
+        else:
+            base = os.path.join(os.path.expanduser("~"), ".cache", "vevo")
         os.makedirs(base, exist_ok=True)
 
         print(f"[VEVO] Downloading model components (patterns={patterns}) ...")
@@ -285,9 +294,8 @@ class VevoEngine:
             return result, OUTPUT_SAMPLE_RATE
 
         finally:
-            # Clean up temp files
-            for path in (src_tmp, ref_tmp, style_tmp):
-                if path is not None and os.path.isfile(path):
+            for path in set(filter(None, (src_tmp, ref_tmp, style_tmp))):
+                if os.path.isfile(path):
                     try:
                         os.unlink(path)
                     except OSError:

@@ -246,20 +246,6 @@ class SeedVCEngine:
         audio = np.clip(audio, -1.0, 1.0)
         wavfile.write(path, sr, audio)
 
-    @staticmethod
-    def _read_wav(path: str) -> Tuple[np.ndarray, int]:
-        """Read a WAV file, returning (float32 1-D array, sample_rate)."""
-        import scipy.io.wavfile as wavfile
-
-        sr, data = wavfile.read(path)
-        data = data.astype(np.float32)
-        if data.ndim > 1:
-            data = data.mean(axis=1)
-        # Normalise int ranges to [-1, 1]
-        if np.abs(data).max() > 1.5:
-            data = data / 32768.0
-        return data, sr
-
     # ------------------------------------------------------------------
     # Inference
     # ------------------------------------------------------------------

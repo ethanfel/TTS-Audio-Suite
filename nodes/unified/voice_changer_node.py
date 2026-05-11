@@ -1168,7 +1168,7 @@ class UnifiedVoiceChangerNode(BaseVCNode):
 
         converted_audio = {"waveform": combined, "sample_rate": output_sr}
 
-        variant = config.get("model_variant", "v2")
+        variant = config.get("variant", "v2")
         steps = config.get("diffusion_steps", 25)
         chunking_info = f"Chunking: {total_chunks} chunks ({chunk_method} mode, {max_chunk_duration}s max) | " if total_chunks > 1 else ""
         conversion_info = (

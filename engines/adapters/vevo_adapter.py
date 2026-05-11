@@ -64,6 +64,8 @@ class VevoEngineAdapter:
         # Detach and move to CPU
         if isinstance(waveform, torch.Tensor):
             waveform = waveform.detach().cpu()
+            if waveform.dtype == torch.bfloat16:
+                waveform = waveform.float()
         else:
             waveform = torch.tensor(waveform)
 

@@ -54,8 +54,10 @@ class EZVCEngineAdapter:
         else:
             arr = np.asarray(waveform)
 
-        # Flatten to 1-D (handles (1,1,N), (1,N), (N,) etc.)
-        arr = arr.astype(np.float32).ravel()
+        # Collapse to mono 1-D
+        arr = arr.astype(np.float32).squeeze()
+        if arr.ndim > 1:
+            arr = arr.mean(axis=0)
         return arr, sr
 
     @staticmethod
