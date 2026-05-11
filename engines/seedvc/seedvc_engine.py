@@ -159,13 +159,23 @@ class SeedVCEngine:
             cfg = DictConfig(yaml.safe_load(f))
 
         # The seed-vc repo has a top-level 'modules' package that collides with
-        # RVC's 'modules.py' already cached in sys.modules.  Clear the stale
-        # entries so Hydra's import_module finds the seed-vc one.
+        # RVC's 'modules.py' on sys.path. Temporarily remove conflicting paths
+        # and clear cached imports so Hydra resolves to the seed-vc package.
+        conflicting = [p for p in sys.path if p != self._repo_dir and os.path.isfile(os.path.join(p, "modules.py"))]
+        for p in conflicting:
+            sys.path.remove(p)
         for key in list(sys.modules.keys()):
             if key == "modules" or key.startswith("modules."):
                 del sys.modules[key]
+        import importlib
+        importlib.invalidate_caches()
 
-        model = instantiate(cfg)
+        try:
+            model = instantiate(cfg)
+        finally:
+            for p in conflicting:
+                if p not in sys.path:
+                    sys.path.append(p)
 
         # load_checkpoints() downloads weights from HuggingFace via hf_hub_download.
         # It writes to ./checkpoints/ relative to CWD, so temporarily change CWD.
