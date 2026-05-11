@@ -158,6 +158,13 @@ class SeedVCEngine:
         with open(config_path) as f:
             cfg = DictConfig(yaml.safe_load(f))
 
+        # The seed-vc repo has a top-level 'modules' package that collides with
+        # RVC's 'modules.py' already cached in sys.modules.  Clear the stale
+        # entries so Hydra's import_module finds the seed-vc one.
+        for key in list(sys.modules.keys()):
+            if key == "modules" or key.startswith("modules."):
+                del sys.modules[key]
+
         model = instantiate(cfg)
 
         # load_checkpoints() downloads weights from HuggingFace via hf_hub_download.
