@@ -138,6 +138,38 @@ class VevoEngine:
     # Pipeline construction
     # ------------------------------------------------------------------
 
+    _LLAMA_DEFAULTS = {
+        "rope_theta": 10000.0,
+        "attention_dropout": 0.0,
+        "attention_bias": False,
+        "num_key_value_heads": None,
+        "max_position_embeddings": 2048,
+        "rms_norm_eps": 1e-6,
+        "pretraining_tp": 1,
+        "hidden_act": "silu",
+        "mlp_bias": False,
+    }
+
+    @staticmethod
+    def _patch_llama_config():
+        """Add __getattr__ fallback to LlamaConfig for missing default attributes."""
+        from transformers import LlamaConfig
+        if getattr(LlamaConfig, "_vevo_patched", False):
+            return
+
+        defaults = VevoEngine._LLAMA_DEFAULTS
+
+        def _getattr(self, name):
+            if name in defaults:
+                val = defaults[name]
+                if val is None and name == "num_key_value_heads":
+                    val = getattr(self, "num_attention_heads", 32)
+                return val
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+        LlamaConfig.__getattr__ = _getattr
+        LlamaConfig._vevo_patched = True
+
     @staticmethod
     def _patch_amphion_source(repo_dir: str):
         """Fix Amphion source for newer transformers (LlamaConfig rejects positional args)."""
@@ -163,6 +195,7 @@ class VevoEngine:
 
     def _inject_amphion_path(self):
         """Ensure Amphion source is importable, handling sys.path collisions."""
+        self._patch_llama_config()
         amphion_dir = self._ensure_amphion()
         self._patch_amphion_source(amphion_dir)
         if amphion_dir not in sys.path:
