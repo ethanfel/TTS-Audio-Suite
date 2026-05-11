@@ -331,6 +331,33 @@ except Exception as e:
     print(f"❌ RVC Engine failed: {e}")
     RVC_ENGINE_AVAILABLE = False
 
+# Load Seed-VC nodes
+try:
+    seedvc_engine_module = load_node_module("seedvc_engine_node", "engines/seedvc_engine_node.py")
+    SeedVCEngineNode = seedvc_engine_module.SeedVCEngineNode
+    SEEDVC_ENGINE_AVAILABLE = True
+except Exception as e:
+    print(f"❌ Seed-VC Engine failed: {e}")
+    SEEDVC_ENGINE_AVAILABLE = False
+
+# Load EZ-VC nodes
+try:
+    ezvc_engine_module = load_node_module("ezvc_engine_node", "engines/ezvc_engine_node.py")
+    EZVCEngineNode = ezvc_engine_module.EZVCEngineNode
+    EZVC_ENGINE_AVAILABLE = True
+except Exception as e:
+    print(f"❌ EZ-VC Engine failed: {e}")
+    EZVC_ENGINE_AVAILABLE = False
+
+# Load VEVO nodes
+try:
+    vevo_engine_module = load_node_module("vevo_engine_node", "engines/vevo_engine_node.py")
+    VevoEngineNode = vevo_engine_module.VevoEngineNode
+    VEVO_ENGINE_AVAILABLE = True
+except Exception as e:
+    print(f"❌ VEVO Engine failed: {e}")
+    VEVO_ENGINE_AVAILABLE = False
+
 try:
     rvc_pitch_options_module = load_node_module("rvc_pitch_options_node", "audio/rvc_pitch_options_node.py")
     RVCPitchOptionsNode = rvc_pitch_options_module.RVCPitchOptionsNode
@@ -651,6 +678,18 @@ if RVC_ENGINE_AVAILABLE:
 if RVC_PITCH_OPTIONS_AVAILABLE:
     NODE_CLASS_MAPPINGS["RVCPitchOptionsNode"] = RVCPitchOptionsNode
     NODE_DISPLAY_NAME_MAPPINGS["RVCPitchOptionsNode"] = "🔧 RVC Pitch Extraction Options"
+
+if SEEDVC_ENGINE_AVAILABLE:
+    NODE_CLASS_MAPPINGS["SeedVCEngineNode"] = SeedVCEngineNode
+    NODE_DISPLAY_NAME_MAPPINGS["SeedVCEngineNode"] = "⚙️ Seed-VC Engine"
+
+if EZVC_ENGINE_AVAILABLE:
+    NODE_CLASS_MAPPINGS["EZVCEngineNode"] = EZVCEngineNode
+    NODE_DISPLAY_NAME_MAPPINGS["EZVCEngineNode"] = "⚙️ EZ-VC Engine"
+
+if VEVO_ENGINE_AVAILABLE:
+    NODE_CLASS_MAPPINGS["VevoEngineNode"] = VevoEngineNode
+    NODE_DISPLAY_NAME_MAPPINGS["VevoEngineNode"] = "⚙️ VEVO Engine"
 
 if VOCAL_REMOVAL_AVAILABLE:
     NODE_CLASS_MAPPINGS["VocalRemovalNode"] = VocalRemovalNode
