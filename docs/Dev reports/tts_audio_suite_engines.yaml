@@ -1045,6 +1045,149 @@ engines:
       vram_efficient: { supported: true, notes: "" }
       speed_performance: { supported: true, notes: "Fast" }
 
+  - id: seed-vc
+    name: Seed-VC
+    models: "V1 offline/realtime, V2"
+    size: "~3.9GB total"
+    license: "GPL-3.0"
+    commercial: "copyleft"
+
+    capabilities:
+      tts: false
+      srt: false
+      vc: true
+      asr: false
+      training: false
+
+    special_features:
+      - "Zero-shot any-to-any VC"
+      - "V2 style/accent transfer"
+      - "Diffusion Transformer"
+      - "Streaming support"
+
+    model_sources:
+      - component: "Seed-VC models"
+        source_name: "Plachta/Seed-VC"
+        source_url: "https://huggingface.co/Plachta/Seed-VC"
+        size: "~3.9GB"
+        auto_download: true
+        notes: "V1 offline (440MB), V1 realtime (142MB), V2 AR+CFM (~712MB), vocoders"
+
+    languages:
+      en: { supported: true, flag: "🇺🇸", notes: "" }
+      zh: { supported: true, flag: "🇨🇳", notes: "" }
+      de: { supported: true, flag: "🇩🇪", notes: "" }
+      es: { supported: true, flag: "🇪🇸", notes: "" }
+      fr: { supported: true, flag: "🇫🇷", notes: "" }
+      ja: { supported: true, flag: "🇯🇵", notes: "" }
+
+    features:
+      voice_cloning: { supported: true, notes: "Zero-shot" }
+      native_multi_speaker: { supported: false, notes: "" }
+      voice_conversion: { supported: true, notes: "" }
+      asr_transcribe: { supported: false, notes: "" }
+      emotion_control: { supported: "partial", notes: "V2 style transfer" }
+      native_long_form: { supported: null, notes: "N/A" }
+      community_finetunes: { supported: false, notes: "" }
+      vram_efficient: { supported: true, notes: "Realtime variant 25M params" }
+      speed_performance: { supported: true, notes: "V1 realtime capable" }
+
+  - id: ez-vc
+    name: EZ-VC
+    models: "F5-TTS decoder + XEUS"
+    size: "~1.35GB + XEUS"
+    license: "MIT code / CC-BY-NC-4.0 weights"
+    commercial: false
+
+    capabilities:
+      tts: false
+      srt: false
+      vc: true
+      asr: false
+      training: false
+
+    special_features:
+      - "Zero-shot cross-lingual VC"
+      - "Single encoder (XEUS)"
+      - "Textless / self-supervised"
+      - "4000+ language support (XEUS)"
+
+    model_sources:
+      - component: "EZ-VC model"
+        source_name: "SPRINGLab/EZ-VC"
+        source_url: "https://huggingface.co/SPRINGLab/EZ-VC"
+        size: "~1.35GB"
+        auto_download: true
+        notes: "Gated model — requires accepting terms on HuggingFace"
+
+    languages:
+      en: { supported: true, flag: "🇺🇸", notes: "" }
+      zh: { supported: true, flag: "🇨🇳", notes: "" }
+      de: { supported: true, flag: "🇩🇪", notes: "" }
+      es: { supported: true, flag: "🇪🇸", notes: "" }
+      fr: { supported: true, flag: "🇫🇷", notes: "" }
+      ja: { supported: true, flag: "🇯🇵", notes: "" }
+      hi: { supported: true, flag: "🇮🇳", notes: "" }
+
+    features:
+      voice_cloning: { supported: true, notes: "Zero-shot" }
+      native_multi_speaker: { supported: false, notes: "" }
+      voice_conversion: { supported: true, notes: "" }
+      asr_transcribe: { supported: false, notes: "" }
+      emotion_control: { supported: false, notes: "" }
+      native_long_form: { supported: null, notes: "N/A" }
+      community_finetunes: { supported: false, notes: "" }
+      vram_efficient: { supported: true, notes: "" }
+      speed_performance: { supported: true, notes: "" }
+
+  - id: vevo
+    name: VEVO
+    models: "Timbre + Voice pipelines"
+    size: "~7.93GB total"
+    license: "MIT code / CC-BY-NC-4.0 weights"
+    commercial: false
+
+    capabilities:
+      tts: false
+      srt: false
+      vc: true
+      asr: false
+      training: false
+
+    special_features:
+      - "Timbre/style disentanglement"
+      - "Timbre-only VC mode"
+      - "Full voice conversion mode"
+      - "Self-supervised VQ-VAE"
+      - "ICLR 2025"
+
+    model_sources:
+      - component: "VEVO models"
+        source_name: "amphion/Vevo"
+        source_url: "https://huggingface.co/amphion/Vevo"
+        size: "~7.93GB"
+        auto_download: true
+        notes: "Selective download: timbre (~2GB), voice (~4GB). From Amphion toolkit."
+
+    languages:
+      en: { supported: true, flag: "🇺🇸", notes: "" }
+      zh: { supported: true, flag: "🇨🇳", notes: "" }
+      de: { supported: true, flag: "🇩🇪", notes: "" }
+      es: { supported: true, flag: "🇪🇸", notes: "" }
+      fr: { supported: true, flag: "🇫🇷", notes: "" }
+      ja: { supported: true, flag: "🇯🇵", notes: "" }
+
+    features:
+      voice_cloning: { supported: true, notes: "Zero-shot" }
+      native_multi_speaker: { supported: false, notes: "" }
+      voice_conversion: { supported: true, notes: "" }
+      asr_transcribe: { supported: false, notes: "" }
+      emotion_control: { supported: "partial", notes: "Style transfer in voice mode" }
+      native_long_form: { supported: null, notes: "N/A" }
+      community_finetunes: { supported: false, notes: "" }
+      vram_efficient: { supported: true, notes: "Timbre mode ~4-6GB VRAM" }
+      speed_performance: { supported: false, notes: "Diffusion-based, slower" }
+
 # Language metadata for reference
 language_metadata:
   en: { name: "English", code: "EN" }
