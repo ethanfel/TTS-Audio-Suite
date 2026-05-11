@@ -46,14 +46,9 @@ class SeedVCEngineNode(BaseTTSNode):
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model_variant": (["v2", "v1_offline", "v1_realtime"], {
+                "model_variant": (["v2"], {
                     "default": "v2",
-                    "tooltip": (
-                        "Seed-VC model variant:\n"
-                        "  v2: Latest model with streaming support (recommended)\n"
-                        "  v1_offline: Original offline model\n"
-                        "  v1_realtime: Original realtime model"
-                    ),
+                    "tooltip": "Seed-VC model variant. V2 is the latest with streaming support.",
                 }),
                 "diffusion_steps": ("INT", {
                     "default": 25,
