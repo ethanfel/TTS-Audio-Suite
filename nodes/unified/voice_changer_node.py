@@ -64,7 +64,7 @@ class UnifiedVoiceChangerNode(BaseVCNode):
         return {
             "required": {
                 "TTS_engine": ("TTS_ENGINE", {
-                    "tooltip": "TTS/VC engine configuration. Supports ChatterBox TTS Engine, CosyVoice Engine, and RVC Engine for voice conversion."
+                    "tooltip": "TTS/VC engine configuration. Supports ChatterBox, CosyVoice, RVC, Seed-VC, EZ-VC, and VEVO engines for voice conversion."
                 }),
                 "source_audio": (any_typ, {
                     "tooltip": "The original voice audio you want to convert to sound like the target voice. Accepts AUDIO input or Character Voices node output."
@@ -861,11 +861,22 @@ class UnifiedVoiceChangerNode(BaseVCNode):
         ensure_python312_cudnn_fix()
 
         try:
-            # Check if this is an RVC_ENGINE (RVCEngineAdapter) or TTS_ENGINE (dict)
+            # Check if this is an adapter-based engine (RVC, Seed-VC, EZ-VC, VEVO)
             if hasattr(TTS_engine, 'engine_type') and TTS_engine.engine_type == "rvc":
-                # This is an RVC_ENGINE adapter
                 return self._handle_rvc_conversion(TTS_engine, source_audio, narrator_target, refinement_passes,
                                                    max_chunk_duration, chunk_method)
+
+            if hasattr(TTS_engine, 'engine_type') and TTS_engine.engine_type == "seedvc":
+                return self._handle_seedvc_conversion(TTS_engine, source_audio, narrator_target, refinement_passes,
+                                                      max_chunk_duration, chunk_method)
+
+            if hasattr(TTS_engine, 'engine_type') and TTS_engine.engine_type == "ezvc":
+                return self._handle_ezvc_conversion(TTS_engine, source_audio, narrator_target, refinement_passes,
+                                                     max_chunk_duration, chunk_method)
+
+            if hasattr(TTS_engine, 'engine_type') and TTS_engine.engine_type == "vevo":
+                return self._handle_vevo_conversion(TTS_engine, source_audio, narrator_target, refinement_passes,
+                                                     max_chunk_duration, chunk_method)
 
             # Validate TTS_ENGINE input (traditional dict format)
             if not TTS_engine or not isinstance(TTS_engine, dict):
@@ -885,8 +896,8 @@ class UnifiedVoiceChangerNode(BaseVCNode):
             print(f"🔄 Voice Changer: Starting {engine_type} voice conversion")
             
             # Validate engine supports voice conversion
-            if engine_type not in ["chatterbox", "chatterbox_official_23lang", "rvc", "cosyvoice"]:
-                raise ValueError(f"Engine '{engine_type}' does not support voice conversion. Currently supported engines: ChatterBox, ChatterBox Official 23-Lang, RVC, CosyVoice")
+            if engine_type not in ["chatterbox", "chatterbox_official_23lang", "rvc", "cosyvoice", "seedvc", "ezvc", "vevo"]:
+                raise ValueError(f"Engine '{engine_type}' does not support voice conversion. Currently supported engines: ChatterBox, ChatterBox Official 23-Lang, RVC, CosyVoice, Seed-VC, EZ-VC, VEVO")
             
             # Extract audio data from flexible inputs (support both AUDIO and NARRATOR_VOICE types)
             processed_source_audio = self._extract_audio_from_input(source_audio, "source_audio")
@@ -1112,6 +1123,193 @@ class UnifiedVoiceChangerNode(BaseVCNode):
             
             return (empty_comfy, error_msg)
     
+    def _handle_seedvc_conversion(self, adapter, source_audio, narrator_target,
+                                   refinement_passes, max_chunk_duration, chunk_method):
+        """Handle Seed-VC voice conversion with chunking support."""
+        from utils.audio.chunk_combiner import ChunkCombiner
+
+        processed_source = self._extract_audio_from_input(source_audio, "source_audio")
+        processed_target = self._extract_audio_from_input(narrator_target, "narrator_target")
+
+        source_sr = processed_source.get("sample_rate", 22050)
+        source_waveform = processed_source.get("waveform")
+        if source_waveform is None:
+            raise ValueError("Source audio missing waveform data")
+
+        source_chunks = self._split_audio_into_chunks(
+            source_waveform, source_sr, max_chunk_duration, chunk_method)
+
+        config = getattr(adapter, 'config', {})
+        total_chunks = len(source_chunks)
+        print(f"🔄 Voice Changer: Seed-VC conversion ({total_chunks} chunk(s), {refinement_passes} pass(es))")
+
+        converted_chunks = []
+        output_sr = source_sr
+        for i, chunk in enumerate(source_chunks, 1):
+            chunk_audio = {"waveform": chunk, "sample_rate": source_sr}
+            current = chunk_audio
+
+            for p in range(refinement_passes):
+                if refinement_passes > 1:
+                    print(f"  🔄 Chunk {i}/{total_chunks}, pass {p+1}/{refinement_passes}...")
+                result, info = adapter.convert_voice(
+                    source_audio=current, reference_audio=processed_target)
+                current = result
+
+            converted_chunks.append(current["waveform"])
+            output_sr = current.get("sample_rate", 22050)
+
+        if total_chunks > 1:
+            combined = ChunkCombiner.combine_chunks(
+                converted_chunks, method="crossfade",
+                crossfade_duration=0.05, sample_rate=output_sr)
+        else:
+            combined = converted_chunks[0]
+
+        converted_audio = {"waveform": combined, "sample_rate": output_sr}
+
+        variant = config.get("model_variant", "v2")
+        steps = config.get("diffusion_steps", 25)
+        chunking_info = f"Chunking: {total_chunks} chunks ({chunk_method} mode, {max_chunk_duration}s max) | " if total_chunks > 1 else ""
+        conversion_info = (
+            f"🔄 Voice Changer (Unified) - SEED-VC Engine:\n"
+            f"Variant: {variant} | Steps: {steps} | "
+            f"{chunking_info}"
+            f"Refinement passes: {refinement_passes} | "
+            f"Device: {config.get('device', 'auto')}"
+        )
+
+        print(f"✅ Seed-VC conversion completed")
+        return (converted_audio, conversion_info)
+
+    def _handle_ezvc_conversion(self, adapter, source_audio, narrator_target,
+                                 refinement_passes, max_chunk_duration, chunk_method):
+        """Handle EZ-VC voice conversion with chunking support."""
+        from utils.audio.chunk_combiner import ChunkCombiner
+
+        processed_source = self._extract_audio_from_input(source_audio, "source_audio")
+        processed_target = self._extract_audio_from_input(narrator_target, "narrator_target")
+
+        source_sr = processed_source.get("sample_rate", 16000)
+        source_waveform = processed_source.get("waveform")
+        if source_waveform is None:
+            raise ValueError("Source audio missing waveform data")
+
+        source_chunks = self._split_audio_into_chunks(
+            source_waveform, source_sr, max_chunk_duration, chunk_method)
+
+        config = getattr(adapter, 'config', {})
+        total_chunks = len(source_chunks)
+        print(f"🔄 Voice Changer: EZ-VC conversion ({total_chunks} chunk(s), {refinement_passes} pass(es))")
+
+        converted_chunks = []
+        output_sr = source_sr
+        for i, chunk in enumerate(source_chunks, 1):
+            chunk_audio = {"waveform": chunk, "sample_rate": source_sr}
+            current = chunk_audio
+
+            for p in range(refinement_passes):
+                if refinement_passes > 1:
+                    print(f"  🔄 Chunk {i}/{total_chunks}, pass {p+1}/{refinement_passes}...")
+                result, info = adapter.convert_voice(
+                    source_audio=current, reference_audio=processed_target)
+                current = result
+
+            converted_chunks.append(current["waveform"])
+            output_sr = current.get("sample_rate", 16000)
+
+        if total_chunks > 1:
+            combined = ChunkCombiner.combine_chunks(
+                converted_chunks, method="crossfade",
+                crossfade_duration=0.05, sample_rate=output_sr)
+        else:
+            combined = converted_chunks[0]
+
+        converted_audio = {"waveform": combined, "sample_rate": output_sr}
+
+        nfe = config.get("nfe_steps", 12)
+        speed = config.get("speed", 1.0)
+        chunking_info = f"Chunking: {total_chunks} chunks ({chunk_method} mode, {max_chunk_duration}s max) | " if total_chunks > 1 else ""
+        conversion_info = (
+            f"🔄 Voice Changer (Unified) - EZ-VC Engine:\n"
+            f"NFE Steps: {nfe} | Speed: {speed}x | "
+            f"{chunking_info}"
+            f"Refinement passes: {refinement_passes} | "
+            f"Device: {config.get('device', 'auto')}"
+        )
+
+        print(f"✅ EZ-VC conversion completed")
+        return (converted_audio, conversion_info)
+
+    def _handle_vevo_conversion(self, adapter, source_audio, narrator_target,
+                                 refinement_passes, max_chunk_duration, chunk_method):
+        """Handle VEVO voice conversion with chunking support."""
+        from utils.audio.chunk_combiner import ChunkCombiner
+
+        processed_source = self._extract_audio_from_input(source_audio, "source_audio")
+        processed_target = self._extract_audio_from_input(narrator_target, "narrator_target")
+
+        # Check for separate style reference stored on adapter
+        style_ref = None
+        if hasattr(adapter, '_style_reference') and adapter._style_reference is not None:
+            try:
+                style_ref = self._extract_audio_from_input(adapter._style_reference, "style_reference")
+            except Exception:
+                style_ref = None
+
+        source_sr = processed_source.get("sample_rate", 24000)
+        source_waveform = processed_source.get("waveform")
+        if source_waveform is None:
+            raise ValueError("Source audio missing waveform data")
+
+        source_chunks = self._split_audio_into_chunks(
+            source_waveform, source_sr, max_chunk_duration, chunk_method)
+
+        config = getattr(adapter, 'config', {})
+        total_chunks = len(source_chunks)
+        mode = config.get("mode", "timbre")
+        print(f"🔄 Voice Changer: VEVO {mode} conversion ({total_chunks} chunk(s), {refinement_passes} pass(es))")
+
+        converted_chunks = []
+        output_sr = source_sr
+        for i, chunk in enumerate(source_chunks, 1):
+            chunk_audio = {"waveform": chunk, "sample_rate": source_sr}
+            current = chunk_audio
+
+            for p in range(refinement_passes):
+                if refinement_passes > 1:
+                    print(f"  🔄 Chunk {i}/{total_chunks}, pass {p+1}/{refinement_passes}...")
+                result, info = adapter.convert_voice(
+                    source_audio=current, reference_audio=processed_target,
+                    style_reference_audio=style_ref)
+                current = result
+
+            converted_chunks.append(current["waveform"])
+            output_sr = current.get("sample_rate", 24000)
+
+        if total_chunks > 1:
+            combined = ChunkCombiner.combine_chunks(
+                converted_chunks, method="crossfade",
+                crossfade_duration=0.05, sample_rate=output_sr)
+        else:
+            combined = converted_chunks[0]
+
+        converted_audio = {"waveform": combined, "sample_rate": output_sr}
+
+        steps = config.get("flow_matching_steps", 32)
+        chunking_info = f"Chunking: {total_chunks} chunks ({chunk_method} mode, {max_chunk_duration}s max) | " if total_chunks > 1 else ""
+        style_info = "Separate style ref" if style_ref else "Same ref for timbre+style"
+        conversion_info = (
+            f"🔄 Voice Changer (Unified) - VEVO Engine:\n"
+            f"Mode: {mode} | Steps: {steps} | {style_info} | "
+            f"{chunking_info}"
+            f"Refinement passes: {refinement_passes} | "
+            f"Device: {config.get('device', 'auto')}"
+        )
+
+        print(f"✅ VEVO conversion completed")
+        return (converted_audio, conversion_info)
+
     def _generate_rvc_cache_key(self, source_audio: Dict[str, Any], rvc_model: Dict[str, Any], config: Dict[str, Any]) -> str:
         """Generate cache key for RVC voice conversion iterations"""
         # Create hash from source audio characteristics and RVC model
