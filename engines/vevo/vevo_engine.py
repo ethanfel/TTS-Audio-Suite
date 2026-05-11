@@ -158,12 +158,45 @@ class VevoEngine:
                         f.write(src.replace(old, new))
                     print(f"[VEVO] Patched {fname} for transformers compatibility")
 
+    # Amphion top-level packages that commonly collide with other repos
+    _AMPHION_PACKAGES = ("utils", "models", "modules", "preprocessors")
+
     def _inject_amphion_path(self):
-        """Ensure Amphion source is importable."""
+        """Ensure Amphion source is importable, handling sys.path collisions."""
         amphion_dir = self._ensure_amphion()
         self._patch_amphion_source(amphion_dir)
         if amphion_dir not in sys.path:
             sys.path.insert(0, amphion_dir)
+
+    def _isolate_amphion_imports(self):
+        """Temporarily isolate sys.path/modules so Amphion packages resolve correctly."""
+        import importlib
+
+        amphion_dir = self._amphion_dir
+        conflicting = []
+        for p in sys.path:
+            if p == amphion_dir:
+                continue
+            for pkg in self._AMPHION_PACKAGES:
+                if os.path.isdir(os.path.join(p, pkg)) or os.path.isfile(os.path.join(p, pkg + ".py")):
+                    conflicting.append(p)
+                    break
+
+        for p in conflicting:
+            sys.path.remove(p)
+        for key in list(sys.modules.keys()):
+            for pkg in self._AMPHION_PACKAGES:
+                if key == pkg or key.startswith(pkg + "."):
+                    del sys.modules[key]
+                    break
+        importlib.invalidate_caches()
+        return conflicting
+
+    @staticmethod
+    def _restore_paths(conflicting):
+        for p in conflicting:
+            if p not in sys.path:
+                sys.path.append(p)
 
     def _load_timbre_pipeline(self):
         """Lazily build the timbre (flow-matching only) pipeline."""
@@ -173,7 +206,11 @@ class VevoEngine:
         self._inject_amphion_path()
         model_dir = self._ensure_models(_TIMBRE_PATTERNS)
 
-        from models.vc.vevo.vevo_utils import VevoInferencePipeline
+        conflicting = self._isolate_amphion_imports()
+        try:
+            from models.vc.vevo.vevo_utils import VevoInferencePipeline
+        finally:
+            self._restore_paths(conflicting)
 
         amphion_dir = self._amphion_dir
 
@@ -197,7 +234,11 @@ class VevoEngine:
         self._inject_amphion_path()
         model_dir = self._ensure_models(_VOICE_PATTERNS)
 
-        from models.vc.vevo.vevo_utils import VevoInferencePipeline
+        conflicting = self._isolate_amphion_imports()
+        try:
+            from models.vc.vevo.vevo_utils import VevoInferencePipeline
+        finally:
+            self._restore_paths(conflicting)
 
         amphion_dir = self._amphion_dir
 
